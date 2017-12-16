@@ -24,17 +24,55 @@ You can have a look at the commands(https://www.digitalocean.com/community/tutor
 6. sudo systemctl status docker
 
 
+Step 4
+Clone the repository
+git clone https://github.com/DataScienceDelhi/dsdevent1.git
 
 
+Step 5
+Start a container with tensorflow tag 1.2.0
+sudo docker run -it -v `pwd`:/notebooks tensorflow/tensorflow:1.2.0
+
+After you get a running jupyter and a token screen close this window directly
+
+Step 6
+sudo docker ps
+sudo docker exec -it <container-id> /bin/bash
+This command will take you inside container with root permissions where we will maintain the environment and so that you can package it and take it to any other machine(be it your local machine)
+
+Step 7
+apt-get update
+apt-get install vim
+
+Step 8
+cd dsdevent1
+
+Step 9 
+Install Gcloud sdk
+export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)"
+echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+apt-get update
+apt-get install google-cloud-sdk
+gcloud init
+
+Step 10
 Also, we use Apache Beam (running on Cloud Dataflow) and PIL to preprocess the images into embeddings, so make sure to install the required packages:
 ```
 pip install -r requirements.txt
 ```
 
-Then, you may follow the instructions
-
+Step 11
 Create flowers1 bucket in your GCS
-Upload dict.txt, train_set.csv, eval_set.csv
+Upload dict.txt, train_set.csv, eval_set.csv and preprocessed files to directly jump to Cloud ML Training step
+declare USER='puneet'
+```
+gsutil cp flower1/dict.txt gs://flower_${USER}/
+gsutil cp flower1/train_set.csv gs://flower_${USER}/
+gsutil cp flower1/eval_set.csv gs://flower_${USER}/
+```
+
+Step 12
 ```
 declare PROJECT=$(gcloud config list project --format "value(core.project)")
 ```
@@ -42,29 +80,41 @@ declare PROJECT=$(gcloud config list project --format "value(core.project)")
 declare JOB_ID="flowers_puneet_$(date +%Y%m%d_%H%M%S)"
 ```
 ```
-declare BUCKET="gs://flowers1"
+declare BUCKET="gs://flower_${USER}"
 ```
 ```
 declare DICT_FILE="${BUCKET}/dict.txt"
 ```
 ```
-declare MODEL_NAME=flowers
+declare MODEL_NAME=flower
 ```
 ```
 declare VERSION_NAME=v1
 
 ```
+
+Step 13
 ```
 python trainer/preprocess.py --input_dict "$DICT_FILE" --input_path "${BUCKET}/train_set.csv" --output_path "${BUCKET}/preproc/train" --cloud
 ```
+
+Step 14
 ```
 python trainer/preprocess.py --input_dict "$DICT_FILE" --input_path "${BUCKET}/eval_set.csv" --output_path "${BUCKET}/preproc/eval" --cloud
 ```
+
+Step 15
+Upload preprocessed data to skip above steps
+gsutil cp -r flower1/* gs://flower_${USER}/
+
+
+Step 16
+```
+# Training on CloudML
+gcloud ml-engine jobs submit training "$JOB_ID" --stream-logs --module-name trainer.task --package-path trainer --staging-bucket "${BUCKET}" --region us-central1 --runtime-version=1.2 -- --output_path "${BUCKET}/training" --eval_data_paths "${BUCKET}/preproc/eval*" --train_data_paths "${BUCKET}/preproc/train*"
 ```
 
-# Training on CloudML
-gcloud ml-engine jobs submit training "$JOB_ID" --stream-logs --module-name trainer.task --package-path trainer --staging-bucket "$BUCKET" --region us-central1 --runtime-version=1.2 -- --output_path "${BUCKET}/training" --eval_data_paths "${BUCKET}/preproc/eval*" --train_data_paths "${BUCKET}/preproc/train*"
-```
+Step 17
 ```
 gcloud ml-engine models create "$MODEL_NAME" --regions us-central1
 ```
@@ -80,5 +130,9 @@ gsutil cp gs://cloud-ml-data/img/flower_photos/daisy/100080576_f52e8ee070_n.jpg 
 ```
 python -c 'import base64, sys, json; img = base64.b64encode(open(sys.argv[1], "rb").read()); print json.dumps({"key":"0", "image_bytes": {"b64": img}})' daisy.jpg &> request.json
 ```
+
+Step 18
 ```
 gcloud ml-engine predict --model ${MODEL_NAME} --json-instances request.json
+
+=================================
