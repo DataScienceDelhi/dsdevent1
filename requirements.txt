@@ -1,0 +1,4 @@
+apache-beam[gcp]
+pillow
+tensorflow==1.2
+
